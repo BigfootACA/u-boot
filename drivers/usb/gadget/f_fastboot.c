@@ -449,6 +449,24 @@ static unsigned int rx_bytes_expected(struct usb_ep *ep)
 	return rx_remain;
 }
 
+static unsigned int tx_bytes_expected(struct usb_ep *ep)
+{
+	int tx_remain = fastboot_upload_remaining();
+	unsigned int rem;
+	unsigned int maxpacket = usb_endpoint_maxp(ep->desc);
+
+	if (tx_remain <= 0)
+		return 0;
+	else if (tx_remain > EP_BUFFER_SIZE)
+		return EP_BUFFER_SIZE;
+
+	rem = tx_remain % maxpacket;
+	if (rem > 0)
+		tx_remain = tx_remain + (maxpacket - rem);
+
+	return tx_remain;
+}
+
 static void rx_handler_dl_image(struct usb_ep *ep, struct usb_request *req)
 {
 	char response[FASTBOOT_RESPONSE_LEN] = {0};
@@ -483,6 +501,33 @@ static void rx_handler_dl_image(struct usb_ep *ep, struct usb_request *req)
 
 	req->actual = 0;
 	usb_ep_queue(ep, req, 0);
+}
+
+static void tx_handler_up_image(struct usb_ep *ep, struct usb_request *req)
+{
+	char response[FASTBOOT_RESPONSE_LEN] = {0};
+	int ret = 0;
+	int tx_transfered;
+
+	tx_transfered = fastboot_data_upload(
+		req->buf, EP_BUFFER_SIZE
+	);
+	if (tx_transfered <= 0) {
+		req->complete = fastboot_complete;
+		req->length = EP_BUFFER_SIZE;
+		fastboot_okay(NULL, response);
+		fastboot_tx_write_str(response);
+		printf("\nTransfer done\n");
+		return;
+	}
+
+	req->length = tx_transfered;
+	usb_ep_dequeue(ep, req);
+
+	ret = usb_ep_queue(ep, req, 0);
+	if (ret) {
+		printf("Error %d while transfer\n", ret);
+	}
 }
 
 static void do_exit_on_complete(struct usb_ep *ep, struct usb_request *req)
@@ -526,6 +571,12 @@ static void rx_handler_command(struct usb_ep *ep, struct usb_request *req)
 	if (!strncmp("DATA", response, 4)) {
 		req->complete = rx_handler_dl_image;
 		req->length = rx_bytes_expected(ep);
+	}
+
+	if (!strncmp("UPLOAD", response, 6)) {
+		fastboot_func->in_req->complete = tx_handler_up_image;
+		fastboot_func->in_req->length = tx_bytes_expected(fastboot_func->in_ep);
+		memcpy(response, response + 6, sizeof(response) - 6);
 	}
 
 	if (!strncmp("OKAY", response, 4)) {

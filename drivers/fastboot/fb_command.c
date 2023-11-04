@@ -24,18 +24,26 @@ static u32 image_size;
 static u32 fastboot_bytes_received;
 
 /**
+ * fastboot_bytes_transfered - number of bytes transfered in the current upload
+ */
+static u32 fastboot_bytes_transfered;
+
+/**
  * fastboot_bytes_expected - number of bytes expected in the current download
  */
 static u32 fastboot_bytes_expected;
 
 static void okay(char *, char *);
 static void getvar(char *, char *);
+static void upload(char *, char *);
 static void download(char *, char *);
 static void flash(char *, char *);
 static void erase(char *, char *);
 static void reboot_bootloader(char *, char *);
 static void reboot_fastbootd(char *, char *);
 static void reboot_recovery(char *, char *);
+static void oem_read(char *, char *);
+static void oem_write(char *, char *);
 static void oem_format(char *, char *);
 static void oem_partconf(char *, char *);
 static void oem_bootbus(char *, char *);
@@ -53,6 +61,10 @@ static const struct {
 	[FASTBOOT_COMMAND_DOWNLOAD] = {
 		.command = "download",
 		.dispatch = download
+	},
+	[FASTBOOT_COMMAND_UPLOAD] = {
+		.command = "upload",
+		.dispatch = upload
 	},
 	[FASTBOOT_COMMAND_FLASH] =  {
 		.command = "flash",
@@ -101,6 +113,14 @@ static const struct {
 	[FASTBOOT_COMMAND_OEM_BOOTBUS] = {
 		.command = "oem bootbus",
 		.dispatch = CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_BOOTBUS, (oem_bootbus), (NULL))
+	},
+	[FASTBOOT_COMMAND_OEM_READ] = {
+		.command = "oem read",
+		.dispatch = CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_MEMORY, (oem_read), (NULL))
+	},
+	[FASTBOOT_COMMAND_OEM_WRITE] = {
+		.command = "oem write",
+		.dispatch = CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_MEMORY, (oem_write), (NULL))
 	},
 	[FASTBOOT_COMMAND_OEM_RUN] = {
 		.command = "oem run",
@@ -213,6 +233,29 @@ static void download(char *cmd_parameter, char *response)
 }
 
 /**
+ * fastboot_upload() - Start a upload transfer from the client
+ *
+ * @cmd_parameter: Pointer to command parameter
+ * @response: Pointer to fastboot response buffer
+ */
+static void upload(char *cmd_parameter, char *response)
+{
+	fastboot_bytes_transfered = 0;
+	if (!fastboot_buf_upload_addr || fastboot_buf_upload_size == 0) {
+		fastboot_fail("No data to upload", response);
+		return;
+	}
+
+	/*
+	 * Nothing to upload yet.
+	 */
+	printf("Starting upload of %d bytes\n",
+	       fastboot_buf_upload_size);
+	fastboot_response("UPLOADDATA", response, "%08x",
+		fastboot_buf_upload_size);
+}
+
+/**
  * fastboot_data_remaining() - return bytes remaining in current transfer
  *
  * Return: Number of bytes left in the current download
@@ -220,6 +263,16 @@ static void download(char *cmd_parameter, char *response)
 u32 fastboot_data_remaining(void)
 {
 	return fastboot_bytes_expected - fastboot_bytes_received;
+}
+
+/**
+ * fastboot_upload_remaining() - return bytes remaining in current transfer
+ *
+ * Return: Number of bytes left in the current upload
+ */
+u32 fastboot_upload_remaining(void)
+{
+	return fastboot_buf_upload_size - fastboot_bytes_transfered;
 }
 
 /**
@@ -264,6 +317,52 @@ void fastboot_data_download(const void *fastboot_data,
 			putc('\n');
 	}
 	*response = '\0';
+}
+/**
+ * fastboot_data_download() - Copy image data to fastboot_buf_addr.
+ *
+ * @fastboot_data: Pointer to received fastboot data
+ * @fastboot_data_len: Length of received fastboot data
+ * @response: Pointer to fastboot response buffer
+ *
+ * Copies image data from fastboot_data to fastboot_buf_addr. Writes to
+ * response. fastboot_bytes_received is updated to indicate the number
+ * of bytes that have been transferred.
+ *
+ * On completion sets image_size and ${filesize} to the total size of the
+ * downloaded image.
+ */
+int fastboot_data_upload(void *fastboot_data,
+			    unsigned int fastboot_data_len)
+{
+#define BYTES_PER_DOT	0x20000
+	u32 pre_dot_num, now_dot_num;
+
+	if (fastboot_data_len == 0)
+		return 0;
+
+	if (fastboot_bytes_transfered >= fastboot_buf_upload_size)
+		return 0;
+
+	if (fastboot_bytes_transfered + fastboot_data_len >= fastboot_buf_upload_size)
+		fastboot_data_len = fastboot_buf_upload_size - fastboot_bytes_transfered;
+
+	/* Download data to fastboot_buf_addr */
+	memcpy(fastboot_data,
+		fastboot_buf_upload_addr + fastboot_bytes_transfered,
+		fastboot_data_len);
+
+	pre_dot_num = fastboot_bytes_transfered / BYTES_PER_DOT;
+	fastboot_bytes_transfered += fastboot_data_len;
+	now_dot_num = fastboot_bytes_transfered / BYTES_PER_DOT;
+
+	if (pre_dot_num != now_dot_num) {
+		putc('.');
+		if (!(now_dot_num % 74))
+			putc('\n');
+	}
+
+	return fastboot_data_len;
 }
 
 /**
@@ -413,6 +512,58 @@ static void reboot_recovery(char *cmd_parameter, char *response)
 		fastboot_fail("Cannot set recovery flag", response);
 	else
 		fastboot_okay(NULL, response);
+}
+
+/**
+ * oem_read() - read memory to host
+ *
+ * @cmd_parameter: Pointer of memory address
+ * @response: Pointer to fastboot response buffer
+ *
+ * Read memory to upload buffer.
+ * Writes to response.
+ */
+static void __maybe_unused oem_read(char *cmd_parameter, char *response)
+{
+	char *tmp;
+	u64 address, size;
+	address = hextoul(cmd_parameter, &tmp);
+	if (*tmp != ':') {
+		fastboot_fail("Invalid address or size", response);
+		return;
+	}
+	size = hextoul(tmp + 1, &tmp);
+	if (*tmp) {
+		fastboot_fail("Invalid size", response);
+		return;
+	}
+	printf("Request read from 0x%llx size 0x%llx\n", address, size);
+	fastboot_buf_upload_addr = (void*)address;
+	fastboot_buf_upload_size = (u32)size;
+	fastboot_okay(NULL, response);
+}
+
+/**
+ * oem_write() - write memory from host
+ *
+ * @cmd_parameter: Pointer of memory address and size
+ * @response: Pointer to fastboot response buffer
+ *
+ * Writes the previously downloaded image to memory
+ * cmd_parameter. Writes to response.
+ */
+static void __maybe_unused oem_write(char *cmd_parameter, char *response)
+{
+	char *tmp;
+	u64 address;
+	address = hextoul(cmd_parameter, &tmp);
+	if (*tmp) {
+		fastboot_fail("Invalid address", response);
+		return;
+	}
+	printf("Request write to 0x%llx tmp %s\n", address, tmp);
+	memcpy((void*)address, fastboot_buf_addr, fastboot_buf_upload_size);
+	fastboot_okay(NULL, response);
 }
 
 /**
