@@ -23,9 +23,19 @@
 void *fastboot_buf_addr;
 
 /**
+ * fastboot_buf_upload - base address of the fastboot upload buffer
+ */
+void *fastboot_buf_upload_addr;
+
+/**
  * fastboot_buf_size - size of the fastboot download buffer
  */
 u32 fastboot_buf_size;
+
+/**
+ * fastboot_buf_size - size of the fastboot upload buffer
+ */
+u32 fastboot_buf_upload_size;
 
 /**
  * fastboot_progress_callback - callback executed during long operations
@@ -213,5 +223,7 @@ void fastboot_init(void *buf_addr, u32 buf_size)
 	fastboot_buf_addr = buf_addr ? buf_addr :
 				       (void *)CONFIG_FASTBOOT_BUF_ADDR;
 	fastboot_buf_size = buf_size ? buf_size : CONFIG_FASTBOOT_BUF_SIZE;
+	fastboot_buf_upload_addr = NULL;
+	fastboot_buf_upload_size = 0;
 	fastboot_set_progress_callback(NULL);
 }

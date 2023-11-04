@@ -233,6 +233,14 @@ config FASTBOOT_CMD_OEM_BOOTBUS
 	  Add support for the "oem bootbus" command from a client. This set
 	  the mmc boot configuration for the selecting eMMC device.
 
+config FASTBOOT_CMD_OEM_MEMORY
+	bool "Enable the 'oem read' and 'oem write' command"
+	help
+	  This extends the fastboot protocol with "oem read" and "oem write"
+	  command. This command allows read and write memory. Do not enable
+	  this feature if you are using verified boot, as it will allow an
+	  attacker to bypass any restrictions you have in place.
+
 config FASTBOOT_OEM_RUN
 	bool "Enable the 'oem run' command"
 	help

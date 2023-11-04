@@ -9,9 +9,19 @@
 extern void *fastboot_buf_addr;
 
 /**
+ * fastboot_buf_addr_upload - base address of the fastboot upload buffer
+ */
+extern void *fastboot_buf_upload_addr;
+
+/**
  * fastboot_buf_size - size of the fastboot download buffer
  */
 extern u32 fastboot_buf_size;
+
+/**
+ * fastboot_buf_size_upload - size of the fastboot upload buffer
+ */
+extern u32 fastboot_buf_upload_size;
 
 /**
  * fastboot_progress_callback - callback executed during long operations

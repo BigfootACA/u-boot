@@ -23,6 +23,7 @@
  */
 enum {
 	FASTBOOT_COMMAND_GETVAR = 0,
+	FASTBOOT_COMMAND_UPLOAD,
 	FASTBOOT_COMMAND_DOWNLOAD,
 	FASTBOOT_COMMAND_FLASH,
 	FASTBOOT_COMMAND_ERASE,
@@ -36,6 +37,8 @@ enum {
 	FASTBOOT_COMMAND_OEM_FORMAT,
 	FASTBOOT_COMMAND_OEM_PARTCONF,
 	FASTBOOT_COMMAND_OEM_BOOTBUS,
+	FASTBOOT_COMMAND_OEM_READ,
+	FASTBOOT_COMMAND_OEM_WRITE,
 	FASTBOOT_COMMAND_OEM_RUN,
 	FASTBOOT_COMMAND_ACMD,
 	FASTBOOT_COMMAND_UCMD,
@@ -150,6 +153,13 @@ int fastboot_handle_command(char *cmd_string, char *response);
 u32 fastboot_data_remaining(void);
 
 /**
+ * fastboot_upload_remaining() - return bytes remaining in current transfer
+ *
+ * Return: Number of bytes left in the current upload
+ */
+u32 fastboot_upload_remaining(void);
+
+/**
  * fastboot_data_download() - Copy image data to fastboot_buf_addr.
  *
  * @fastboot_data: Pointer to received fastboot data
@@ -162,6 +172,19 @@ u32 fastboot_data_remaining(void);
  */
 void fastboot_data_download(const void *fastboot_data,
 			    unsigned int fastboot_data_len, char *response);
+
+/**
+ * fastboot_data_upload() - Send image data from fastboot_buf_upload_addr.
+ *
+ * @fastboot_data: Pointer to fastboot buffer
+ * @fastboot_data_len: Length of fastboot buffer
+ *
+ * Copies image data from fastboot_buf_upload_addr to fastboot buffer
+ * fastboot_bytes_transfered is updated to indicate the number
+ * of bytes that have been transferred.
+ */
+int fastboot_data_upload(void *fastboot_data,
+			    unsigned int fastboot_data_len);
 
 /**
  * fastboot_data_complete() - Mark current transfer complete
