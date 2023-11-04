@@ -530,7 +530,11 @@ struct mmc *sunxi_mmc_init(int sdc_no)
 
 	if ((IS_ENABLED(CONFIG_MACH_SUN50I) || IS_ENABLED(CONFIG_MACH_SUN8I) ||
 	    IS_ENABLED(CONFIG_SUN50I_GEN_H6)) && (sdc_no == 2))
+#if defined(CONFIG_SUN50I_GEN_H6) && defined(CONFIG_SPL_BUILD)
+		cfg->host_caps = MMC_MODE_1BIT;
+#else
 		cfg->host_caps = MMC_MODE_8BIT;
+#endif
 
 	cfg->host_caps |= MMC_MODE_HS_52MHz | MMC_MODE_HS;
 	cfg->b_max = CONFIG_SYS_MMC_MAX_BLK_COUNT;
