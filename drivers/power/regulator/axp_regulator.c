@@ -268,12 +268,39 @@ static const struct axp_regulator_plat axp813_regulators[] = {
 	{ }
 };
 
+static const u16 axp313a_dcdc1_table[] = {
+	500, 510, 520, 530, 540, 550, 560, 570, 580, 590, 600, 610,
+	620, 630, 640, 650, 660, 670, 680, 690, 700, 710, 720, 730,
+	740, 750, 760, 770, 780, 790, 800, 810, 820, 830, 840, 850, 
+	860, 870, 880, 890, 900, 910, 920, 930, 940, 950, 960, 970, 
+	980, 990, 1000, 1010, 1020, 1030, 1040, 1050, 1060, 1070, 
+	1080, 1090, 1100, 1110, 1120, 1130, 1140, 1150, 1160, 1170, 
+	1180, 1190, 1200, 1220, 1240, 1260, 1280, 1300, 1320, 1340, 
+	1360, 1380, 1400, 1420, 1440, 1460, 1480, 1500, 1520, 1540, 
+	1600, 1700, 1800, 1900, 2000, 2100, 2200, 2300, 2400, 2500, 
+	2600, 2700, 2800, 2900, 3000, 3100, 3200, 3300, 3400,
+};
+
+/* DCDC3's setting is deviating from the datasheet. The values
+ * here are taken from linux-6.5 which are taken from the
+ * BSP driver and have been confirmed by measurements.
+ */
+static const struct axp_regulator_plat axp313a_regulators[] = {
+	{ "dcdc1", 0x10, BIT(0), 0x13, 0x7f, .table = axp313a_dcdc1_table },
+	{ "dcdc2", 0x10, BIT(1), 0x14, 0x7f,  500, 1540,  10, 70 },
+	{ "dcdc3", 0x10, BIT(2), 0x15, 0x7f,  800, 1840,  10, 70 },
+	{ "aldo1", 0x10, BIT(3), 0x16, 0x1f,  500, 3500, 100, NA },
+	{ "dldo1", 0x10, BIT(4), 0x17, 0x1f,  500, 3500, 100, NA },
+	{ }
+};
+
 static const struct axp_regulator_plat *const axp_regulators[] = {
 	[AXP152_ID]	= axp152_regulators,
 	[AXP202_ID]	= axp20x_regulators,
 	[AXP209_ID]	= axp20x_regulators,
 	[AXP221_ID]	= axp22x_regulators,
 	[AXP223_ID]	= axp22x_regulators,
+	[AXP313A_ID]	= axp313a_regulators,
 	[AXP803_ID]	= axp803_regulators,
 	[AXP806_ID]	= axp806_regulators,
 	[AXP809_ID]	= axp809_regulators,

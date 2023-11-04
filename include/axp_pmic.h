@@ -13,6 +13,7 @@
 #include <axp209.h>
 #include <axp221.h>
 #include <axp305.h>
+#include <axp313a.h>
 #include <axp809.h>
 #include <axp818.h>
 
@@ -32,6 +33,7 @@ enum {
 	AXP209_ID,
 	AXP221_ID,
 	AXP223_ID,
+	AXP313A_ID,
 	AXP803_ID,
 	AXP806_ID,
 	AXP809_ID,
