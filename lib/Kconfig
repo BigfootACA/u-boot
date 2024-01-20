@@ -1046,6 +1046,30 @@ config SPL_OID_REGISTRY
 	  unambiguous persistent name (https://en.wikipedia.org/wiki/Object_identifier).
 	  Enable fast lookup object identifier registry in the SPL.
 
+config LIB_SLOTS
+	bool "Simple A/B Slots support"
+	default y
+
+if LIB_SLOTS
+
+config SLOTS_DEFAULT_BOOT_INTF
+	string "Default boot interface used for simple slots"
+	default "mmc"
+
+config SLOTS_DEFAULT_BOOT_DEV
+	int "Default boot device used for simple slots"
+	default 0
+
+config SLOTS_DEFAULT_BOOT_PART
+	int "Default boot part used for simple slots"
+	default 2
+
+config SLOTS_DEFAULT_MAX_COUNT
+	int "Default try count for simple slots"
+	default 3
+
+endif
+
 config SMBIOS_PARSER
 	bool "SMBIOS parser"
 	help
