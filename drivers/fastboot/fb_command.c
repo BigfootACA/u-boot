@@ -12,6 +12,7 @@
 #include <fb_nand.h>
 #include <part.h>
 #include <stdlib.h>
+#include <slots.h>
 
 /**
  * image_size - final fastboot image size
@@ -39,6 +40,7 @@ static void upload(char *, char *);
 static void download(char *, char *);
 static void flash(char *, char *);
 static void erase(char *, char *);
+static void slots_set_active(char *, char *);
 static void reboot_bootloader(char *, char *);
 static void reboot_fastbootd(char *, char *);
 static void reboot_recovery(char *, char *);
@@ -100,7 +102,7 @@ static const struct {
 	},
 	[FASTBOOT_COMMAND_SET_ACTIVE] =  {
 		.command = "set_active",
-		.dispatch = okay
+		.dispatch = CONFIG_IS_ENABLED(LIB_SLOTS, (slots_set_active), (okay))
 	},
 	[FASTBOOT_COMMAND_OEM_FORMAT] = {
 		.command = "oem format",
@@ -471,6 +473,33 @@ static void __maybe_unused run_acmd(char *cmd_parameter, char *response)
 	strcpy(g_a_cmd_buff, cmd_parameter);
 	fastboot_okay(NULL, response);
 }
+
+/**
+ * slots_set_active() - Set active slots
+ *
+ * @cmd_parameter: Pointer to command parameter
+ * @response: Pointer to fastboot response buffer
+ */
+#if IS_ENABLED(CONFIG_LIB_SLOTS)
+static void slots_set_active(char *cmd_parameter, char *response)
+{
+	char *slot = cmd_parameter;
+	if (!slot) {
+		fastboot_fail(NULL, response);
+		return;
+	}
+	if (slot[0] == '_') slot++;
+	slot_initialize();
+	if (!slot_is_valid(slot)) {
+		fastboot_fail("No such slot", response);
+		return;
+	}
+	slot_set_current(slot);
+	slot_set_count(slot, 0);
+	slot_flush();
+	fastboot_okay(NULL, response);
+}
+#endif
 
 /**
  * reboot_bootloader() - Sets reboot bootloader flag.

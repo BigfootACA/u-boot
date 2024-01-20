@@ -18,6 +18,7 @@
 #include <div64.h>
 #include <linux/compat.h>
 #include <android_image.h>
+#include <slots.h>
 
 #define BOOT_PARTITION_NAME "boot"
 
@@ -77,6 +78,12 @@ static int do_get_part_info(struct blk_desc **dev_desc, const char *name,
 			    struct disk_partition *info)
 {
 	int ret;
+#if IS_ENABLED(CONFIG_LIB_SLOTS)
+	char wslot[PART_NAME_LEN];
+	const char *slot;
+	slot_initialize();
+	slot = slot_get_current();
+#endif
 
 	/* First try partition names on the default device */
 	*dev_desc = blk_get_dev("mmc", CONFIG_FASTBOOT_FLASH_MMC_DEV);
@@ -84,6 +91,15 @@ static int do_get_part_info(struct blk_desc **dev_desc, const char *name,
 		ret = part_get_info_by_name(*dev_desc, name, info);
 		if (ret >= 0)
 			return ret;
+
+#if IS_ENABLED(CONFIG_LIB_SLOTS)
+		if (slot_is_valid(slot)) {
+			snprintf(wslot, sizeof(wslot), "%s_%s", name, slot);
+			ret = part_get_info_by_name(*dev_desc, wslot, info);
+			if (ret >= 0)
+				return ret;
+		}
+#endif
 
 		/* Then try raw partitions */
 		ret = raw_part_get_info_by_name(*dev_desc, name, info);
@@ -512,6 +528,12 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 {
 	struct blk_desc *dev_desc;
 	struct disk_partition info = {0};
+#if IS_ENABLED(CONFIG_LIB_SLOTS)
+	int i;
+	const char *slot;
+	char wslot[PART_NAME_LEN];
+	slot_initialize();
+#endif
 
 #ifdef CONFIG_FASTBOOT_MMC_BOOT_SUPPORT
 	if (strcmp(cmd, CONFIG_FASTBOOT_MMC_BOOT1_NAME) == 0) {
@@ -608,6 +630,19 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 	if (!info.name[0] &&
 	    fastboot_mmc_get_part_info(cmd, &dev_desc, &info, response) < 0)
 		return;
+
+#if IS_ENABLED(CONFIG_LIB_SLOTS)
+	// Reset boot count when flash boot and system slots
+	for (i = 0; (slot = slot_availables[i]); i++) {
+		snprintf(wslot, sizeof(wslot), "boot_%s", slot);
+		if (strcmp(cmd, wslot) == 0)
+			slot_set_count(slot, 0);
+		snprintf(wslot, sizeof(wslot), "system_%s", slot);
+		if (strcmp(cmd, wslot) == 0)
+			slot_set_count(slot, 0);
+	}
+	slot_flush();
+#endif
 
 	if (is_sparse_image(download_buffer)) {
 		struct fb_mmc_sparse sparse_priv;

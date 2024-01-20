@@ -12,6 +12,7 @@
 #include <fs.h>
 #include <part.h>
 #include <version.h>
+#include <slots.h>
 
 static void getvar_version(char *var_parameter, char *response);
 static void getvar_version_bootloader(char *var_parameter, char *response);
@@ -21,6 +22,10 @@ static void getvar_version_baseband(char *var_parameter, char *response);
 static void getvar_product(char *var_parameter, char *response);
 static void getvar_platform(char *var_parameter, char *response);
 static void getvar_current_slot(char *var_parameter, char *response);
+static void getvar_slot_count(char *var_parameter, char *response);
+static void getvar_slot_successful(char *var_parameter, char *response);
+static void getvar_slot_unbootable(char *var_parameter, char *response);
+static void getvar_slot_retry_count(char *var_parameter, char *response);
 static void getvar_has_slot(char *var_parameter, char *response);
 static void getvar_partition_type(char *part_name, char *response);
 static void getvar_partition_size(char *part_name, char *response);
@@ -57,6 +62,18 @@ static const struct {
 	}, {
 		.variable = "current-slot",
 		.dispatch = getvar_current_slot
+	}, {
+		.variable = "slot-count",
+		.dispatch = getvar_slot_count
+	}, {
+		.variable = "slot-successful",
+		.dispatch = getvar_slot_successful
+	}, {
+		.variable = "slot-unbootable",
+		.dispatch = getvar_slot_unbootable
+	}, {
+		.variable = "slot-retry-count",
+		.dispatch = getvar_slot_retry_count
 #if IS_ENABLED(CONFIG_FASTBOOT_FLASH)
 	}, {
 		.variable = "has-slot",
@@ -168,8 +185,83 @@ static void getvar_platform(char *var_parameter, char *response)
 
 static void getvar_current_slot(char *var_parameter, char *response)
 {
+#if IS_ENABLED(CONFIG_LIB_SLOTS)
+	const char *cur;
+	slot_initialize();
+	cur = slot_get_current();
+	if (slot_is_valid(cur)) fastboot_okay(cur, response);
+	else fastboot_fail("slot_get_current failed", response);
+#else
 	/* A/B not implemented, for now always return "a" */
 	fastboot_okay("a", response);
+#endif
+}
+
+static void getvar_slot_count(char *var_parameter, char *response)
+{
+#if IS_ENABLED(CONFIG_LIB_SLOTS)
+	int count = 0, i;
+	const char *slot;
+	slot_initialize();
+	for (i = 0; (slot = slot_availables[i]); i++)
+		if (strncmp(slot, "recovery", 8) !=0) count++;
+	fastboot_response("OKAY", response, "%d", count);
+#else
+	fastboot_okay("1", response);
+#endif
+}
+
+static const char *fb_get_slot(const char *slot, char *response)
+{
+	slot_initialize();
+	if (!slot) {
+		fastboot_fail(NULL, response);
+		return NULL;
+	}
+	if (slot[0] == '_') slot++;
+	if (!slot_is_valid(slot)) {
+		fastboot_fail("No such slot", response);
+		return NULL;
+	}
+	return slot;
+}
+
+static void getvar_slot_successful(char *var_parameter, char *response)
+{
+#if IS_ENABLED(CONFIG_LIB_SLOTS)
+	const char *slot;
+	if ((slot = fb_get_slot(var_parameter, response)))
+		fastboot_okay(slot_is_successful(slot) ? "yes" : "no", response);
+#else
+	fastboot_okay("yes", response);
+#endif
+}
+
+static void getvar_slot_unbootable(char *var_parameter, char *response)
+{
+#if IS_ENABLED(CONFIG_LIB_SLOTS)
+	const char *slot;
+	if ((slot = fb_get_slot(var_parameter, response)))
+		fastboot_okay(slot_is_bootable(slot) ? "no" : "yes", response);
+#else
+	fastboot_okay("no", response);
+#endif
+}
+
+static void getvar_slot_retry_count(char *var_parameter, char *response)
+{
+#if IS_ENABLED(CONFIG_LIB_SLOTS)
+	int count;
+	const char *slot;
+	if ((slot = fb_get_slot(var_parameter, response))) {
+		count = slot_get_count(slot);
+		count = slot_max_count - count;
+		if (count < 0) count = 0;
+		fastboot_response("OKAY", response, "%d", count);
+	}
+#else
+	fastboot_okay("yes", 7);
+#endif
 }
 
 static void __maybe_unused getvar_has_slot(char *part_name, char *response)
@@ -178,6 +270,16 @@ static void __maybe_unused getvar_has_slot(char *part_name, char *response)
 	size_t len;
 	int r;
 
+#if IS_ENABLED(CONFIG_LIB_SLOTS)
+	const char *cur;
+	slot_initialize();
+	cur = slot_get_current();
+	if (!slot_is_valid(cur)) {
+		fastboot_fail("slot_get_current failed", response);
+		return;
+	}
+#endif
+
 	if (!part_name || part_name[0] == '\0')
 		goto fail;
 
@@ -185,7 +287,12 @@ static void __maybe_unused getvar_has_slot(char *part_name, char *response)
 	len = strlcpy(part_name_wslot, part_name, PART_NAME_LEN - 3);
 	if (len > PART_NAME_LEN - 3)
 		goto fail;
+#if IS_ENABLED(CONFIG_LIB_SLOTS)
+	strcat(part_name_wslot, "_");
+	strcat(part_name_wslot, cur);
+#else
 	strcat(part_name_wslot, "_a");
+#endif
 
 	r = getvar_get_part_info(part_name_wslot, response, NULL);
 	if (r >= 0) {
