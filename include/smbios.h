@@ -181,6 +181,25 @@ struct __packed smbios_type4 {
 	char eos[SMBIOS_STRUCT_EOS_BYTES];
 };
 
+struct __packed smbios_type7 {
+	u8 type;
+	u8 length;
+	u16 handle;
+	u8 socket_designation;
+	u16 cache_config;
+	u16 max_size2;
+	u16 installed_size2;
+	u16 supported_sram_type;
+	u16 current_sram_type;
+	u8 cache_speed;
+	u8 err_correction_type;
+	u8 cache_type;
+	u8 associativity;
+	u32 max_size;
+	u32 installed_size;
+	char eos[SMBIOS_STRUCT_EOS_BYTES];
+};
+
 struct __packed smbios_type32 {
 	u8 type;
 	u8 length;

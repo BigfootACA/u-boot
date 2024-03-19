@@ -62,6 +62,11 @@ struct smbios_ctx {
 	char *eos;
 	char *next_ptr;
 	char *last_str;
+	const char *subnode_name;
+	int type7_l1i;
+	int type7_l1d;
+	int type7_l2;
+	int type7_l3;
 };
 
 /**
@@ -159,6 +164,30 @@ static int smbios_add_prop_si(struct smbios_ctx *ctx, const char *prop,
 }
 
 /**
+ * smbios_add_prop_int() - Add a property from the devicetree or sysinfo
+ *
+ * Sysinfo is used if available, with a fallback to devicetree
+ *
+ * @ctx:	context for writing the tables
+ * @prop:	property to add
+ * @def:	default value if not found
+ */
+static int smbios_add_prop_int_si(struct smbios_ctx *ctx, const char *prop,
+			          int sysinfo_id, int def)
+{
+	int val, ret;
+	if (sysinfo_id && ctx->dev) {
+		ret = sysinfo_get_int(ctx->dev, sysinfo_id, &val);
+		if (!ret) return val;
+	}
+	if (IS_ENABLED(CONFIG_OF_CONTROL)) {
+		ret = ofnode_read_u32(ctx->node, prop, &val);
+		if (!ret) return val;
+	}
+	return def;
+}
+
+/**
  * smbios_add_prop() - Add a property from the devicetree
  *
  * @prop:	property to write
@@ -167,6 +196,17 @@ static int smbios_add_prop_si(struct smbios_ctx *ctx, const char *prop,
 static int smbios_add_prop(struct smbios_ctx *ctx, const char *prop)
 {
 	return smbios_add_prop_si(ctx, prop, SYSINFO_ID_NONE);
+}
+
+/**
+ * smbios_add_prop() - Add a property from the devicetree
+ *
+ * @prop:	property to write
+ * Return:	0 if not found, else SMBIOS string number (1 or more)
+ */
+static int smbios_add_prop_int(struct smbios_ctx *ctx, const char *prop, int def)
+{
+	return smbios_add_prop_int_si(ctx, prop, SYSINFO_ID_NONE, def);
 }
 
 static void smbios_set_eos(struct smbios_ctx *ctx, char *eos)
@@ -269,12 +309,23 @@ static int smbios_write_type0(ulong *current, int handle,
 	return len;
 }
 
+static int smbios_add_serial(struct smbios_ctx *ctx)
+{
+	int ret;
+	char *serial_str = env_get("serial#");
+	ret = smbios_add_prop(ctx, "serial");
+	if (!ret && serial_str)
+		ret = smbios_add_string(ctx, serial_str);
+	return ret;
+}
+
 static int smbios_write_type1(ulong *current, int handle,
 			      struct smbios_ctx *ctx)
 {
 	struct smbios_type1 *t;
 	int len = sizeof(struct smbios_type1);
 	char *serial_str = env_get("serial#");
+	if (IS_ENABLED(CONFIG_OF_CONTROL) && !ofnode_is_enabled(ctx->node)) return 0;
 
 	t = map_sysmem(*current, len);
 	memset(t, 0, sizeof(struct smbios_type1));
@@ -288,14 +339,11 @@ static int smbios_write_type1(ulong *current, int handle,
 		t->product_name = smbios_add_string(ctx, "Unknown Product");
 	t->version = smbios_add_prop_si(ctx, "version",
 					SYSINFO_ID_SMBIOS_SYSTEM_VERSION);
-	if (serial_str) {
-		t->serial_number = smbios_add_string(ctx, serial_str);
-		strncpy((char *)t->uuid, serial_str, sizeof(t->uuid));
-	} else {
-		t->serial_number = smbios_add_prop(ctx, "serial");
-	}
+	if (serial_str) strncpy((char *)t->uuid, serial_str, sizeof(t->uuid));
+	t->serial_number = smbios_add_serial(ctx);
 	t->sku_number = smbios_add_prop(ctx, "sku");
 	t->family = smbios_add_prop(ctx, "family");
+	t->wakeup_type = smbios_add_prop_int(ctx, "wakeup", 0);
 
 	len = t->length + smbios_string_table_len(ctx);
 	*current += len;
@@ -309,6 +357,7 @@ static int smbios_write_type2(ulong *current, int handle,
 {
 	struct smbios_type2 *t;
 	int len = sizeof(struct smbios_type2);
+	if (IS_ENABLED(CONFIG_OF_CONTROL) && !ofnode_is_enabled(ctx->node)) return 0;
 
 	t = map_sysmem(*current, len);
 	memset(t, 0, sizeof(struct smbios_type2));
@@ -323,8 +372,9 @@ static int smbios_write_type2(ulong *current, int handle,
 	t->version = smbios_add_prop_si(ctx, "version",
 					SYSINFO_ID_SMBIOS_BASEBOARD_VERSION);
 	t->asset_tag_number = smbios_add_prop(ctx, "asset-tag");
-	t->feature_flags = SMBIOS_BOARD_FEATURE_HOSTING;
-	t->board_type = SMBIOS_BOARD_MOTHERBOARD;
+	t->serial_number = smbios_add_serial(ctx);
+	t->feature_flags = smbios_add_prop_int(ctx, "flags", SMBIOS_BOARD_FEATURE_HOSTING);
+	t->board_type = smbios_add_prop_int(ctx, "type", SMBIOS_BOARD_MOTHERBOARD);
 
 	len = t->length + smbios_string_table_len(ctx);
 	*current += len;
@@ -338,6 +388,7 @@ static int smbios_write_type3(ulong *current, int handle,
 {
 	struct smbios_type3 *t;
 	int len = sizeof(struct smbios_type3);
+	if (IS_ENABLED(CONFIG_OF_CONTROL) && !ofnode_is_enabled(ctx->node)) return 0;
 
 	t = map_sysmem(*current, len);
 	memset(t, 0, sizeof(struct smbios_type3));
@@ -346,7 +397,10 @@ static int smbios_write_type3(ulong *current, int handle,
 	t->manufacturer = smbios_add_prop(ctx, "manufacturer");
 	if (!t->manufacturer)
 		t->manufacturer = smbios_add_string(ctx, "Unknown");
-	t->chassis_type = SMBIOS_ENCLOSURE_DESKTOP;
+	t->version = smbios_add_prop(ctx, "version");
+	t->chassis_type = smbios_add_prop_int(ctx, "type", SMBIOS_ENCLOSURE_DESKTOP);
+	t->asset_tag_number = smbios_add_prop(ctx, "asset-tag");
+	t->serial_number = smbios_add_serial(ctx);
 	t->bootup_state = SMBIOS_STATE_SAFE;
 	t->power_supply_state = SMBIOS_STATE_SAFE;
 	t->thermal_state = SMBIOS_STATE_SAFE;
@@ -362,9 +416,8 @@ static int smbios_write_type3(ulong *current, int handle,
 static void smbios_write_type4_dm(struct smbios_type4 *t,
 				  struct smbios_ctx *ctx)
 {
-	u16 processor_family = SMBIOS_PROCESSOR_FAMILY_UNKNOWN;
-	const char *vendor = "Unknown";
-	const char *name = "Unknown";
+	const char *vendor = NULL;
+	const char *name = NULL;
 
 #ifdef CONFIG_CPU
 	char processor_name[49];
@@ -374,9 +427,9 @@ static void smbios_write_type4_dm(struct smbios_type4 *t,
 	uclass_find_first_device(UCLASS_CPU, &cpu);
 	if (cpu) {
 		struct cpu_plat *plat = dev_get_parent_plat(cpu);
+		struct cpu_info info;
 
-		if (plat->family)
-			processor_family = plat->family;
+		if (plat->family) t->processor_family2 = plat->family;
 		t->processor_id[0] = plat->id[0];
 		t->processor_id[1] = plat->id[1];
 
@@ -384,12 +437,32 @@ static void smbios_write_type4_dm(struct smbios_type4 *t,
 			vendor = vendor_name;
 		if (!cpu_get_desc(cpu, processor_name, sizeof(processor_name)))
 			name = processor_name;
+		if (!cpu_get_info(cpu, &info)) {
+			t->current_speed = info.cpu_freq / 1000000;
+			t->max_speed = t->current_speed;
+		}
+		if (plat->timebase_freq)
+			t->current_speed = plat->timebase_freq / 1000000;
+		t->core_count2 = cpu_get_count(cpu);
 	}
 #endif
 
-	t->processor_family = processor_family;
-	t->processor_manufacturer = smbios_add_string(ctx, vendor);
-	t->processor_version = smbios_add_string(ctx, name);
+	t->processor_manufacturer = smbios_add_prop(ctx, "manufacturer");
+	if (!t->processor_manufacturer) t->processor_manufacturer = smbios_add_string(ctx, vendor);
+	t->processor_version = smbios_add_prop(ctx, "version");
+	if (!t->processor_version) t->processor_version = smbios_add_string(ctx, name);
+	t->core_count2 = smbios_add_prop_int(ctx, "cores", t->core_count2);
+	t->thread_count2 = smbios_add_prop_int(ctx, "threads", t->core_count2);
+	t->processor_id[0] = smbios_add_prop_int(ctx, "id0", t->processor_id[0]);
+	t->processor_id[1] = smbios_add_prop_int(ctx, "id1", t->processor_id[1]);
+	t->current_speed = smbios_add_prop_int(ctx, "current-speed", t->current_speed);
+	t->max_speed = smbios_add_prop_int(ctx, "max-speed", t->max_speed);
+	t->processor_family2 = smbios_add_prop_int(ctx, "family", t->processor_family2);
+	t->processor_family = t->processor_family2 >= 0xFE ? 0xFE : t->processor_family;
+	t->thread_count = t->thread_count2 >= 0xFF ? 0xFF : t->thread_count;
+	t->core_count = t->core_count2 >= 0xFF ? 0xFF : t->core_count;
+	t->core_enabled2 = t->core_count2;
+	t->core_enabled = t->core_count;
 }
 
 static int smbios_write_type4(ulong *current, int handle,
@@ -397,23 +470,70 @@ static int smbios_write_type4(ulong *current, int handle,
 {
 	struct smbios_type4 *t;
 	int len = sizeof(struct smbios_type4);
+	if (IS_ENABLED(CONFIG_OF_CONTROL) && !ofnode_is_enabled(ctx->node)) return 0;
 
 	t = map_sysmem(*current, len);
 	memset(t, 0, sizeof(struct smbios_type4));
 	fill_smbios_header(t, SMBIOS_PROCESSOR_INFORMATION, len, handle);
 	smbios_set_eos(ctx, t->eos);
-	t->processor_type = SMBIOS_PROCESSOR_TYPE_CENTRAL;
 	smbios_write_type4_dm(t, ctx);
-	t->status = SMBIOS_PROCESSOR_STATUS_ENABLED;
-	t->processor_upgrade = SMBIOS_PROCESSOR_UPGRADE_NONE;
-	t->l1_cache_handle = 0xffff;
-	t->l2_cache_handle = 0xffff;
-	t->l3_cache_handle = 0xffff;
-	t->processor_family2 = t->processor_family;
+	t->serial_number = smbios_add_serial(ctx);
+	t->status = smbios_add_prop_int(ctx, "status", SMBIOS_PROCESSOR_STATUS_ENABLED);
+	t->processor_type = smbios_add_prop_int(ctx, "type", SMBIOS_PROCESSOR_TYPE_CENTRAL);
+	t->processor_upgrade = smbios_add_prop_int(ctx, "upgrade", SMBIOS_PROCESSOR_UPGRADE_NONE);
+	t->external_clock = smbios_add_prop_int(ctx, "external-clock", t->external_clock);
+	t->processor_characteristics = smbios_add_prop_int(ctx, "characteristics", t->processor_characteristics);
+	t->voltage = smbios_add_prop_int(ctx, "voltage", t->voltage);
+	t->part_number = smbios_add_prop(ctx, "part");
+	t->asset_tag = smbios_add_prop(ctx, "asset-tag");
+	t->socket_designation = smbios_add_prop(ctx, "socket");
+	t->l1_cache_handle = ctx->type7_l1d > 0 ? ctx->type7_l1d : 0xffff;
+	t->l2_cache_handle = ctx->type7_l2 > 0 ? ctx->type7_l2 : 0xffff;
+	t->l3_cache_handle = ctx->type7_l3 > 0 ? ctx->type7_l3 : 0xffff;
 
 	len = t->length + smbios_string_table_len(ctx);
 	*current += len;
 	unmap_sysmem(t);
+
+	return len;
+}
+
+static int smbios_write_type7(ulong *current, int handle,
+			      struct smbios_ctx *ctx)
+{
+
+	struct smbios_type7 *t;
+	int len = sizeof(struct smbios_type7);
+	if (IS_ENABLED(CONFIG_OF_CONTROL) && !ofnode_is_enabled(ctx->node)) return 0;
+
+	t = map_sysmem(*current, len);
+	memset(t, 0, sizeof(struct smbios_type7));
+	fill_smbios_header(t, SMBIOS_CACHE_INFORMATION, len, handle);
+	smbios_set_eos(ctx, t->eos);
+
+	t->socket_designation = smbios_add_prop(ctx, "socket");
+	t->cache_config = smbios_add_prop_int(ctx, "config", t->cache_config);
+	t->max_size2 = smbios_add_prop_int(ctx, "max-size", t->max_size2);
+	t->installed_size2 = smbios_add_prop_int(ctx, "installed-size", t->installed_size2);
+	t->supported_sram_type = smbios_add_prop_int(ctx, "supported-sram-type", t->supported_sram_type);
+	t->current_sram_type = smbios_add_prop_int(ctx, "current-sram-type", t->current_sram_type);
+	t->cache_speed = smbios_add_prop_int(ctx, "cache-speed", t->cache_speed);
+	t->err_correction_type = smbios_add_prop_int(ctx, "correction-type", 0x02);
+	t->cache_type = smbios_add_prop_int(ctx, "cache-type", 0x02);
+	t->associativity = smbios_add_prop_int(ctx, "associativity", 0x02);
+	t->max_size = t->max_size2 >= 0xFFFF ? 0xFFFF : t->max_size;
+	t->installed_size = t->installed_size2 >= 0xFFFF ? 0xFFFF : t->installed_size;
+
+	len = t->length + smbios_string_table_len(ctx);
+	*current += len;
+	unmap_sysmem(t);
+
+	if (ctx->subnode_name) {
+		if (!strcmp(ctx->subnode_name, "l1i-cache")) ctx->type7_l1i = handle;
+		if (!strcmp(ctx->subnode_name, "l1d-cache")) ctx->type7_l1d = handle;
+		if (!strcmp(ctx->subnode_name, "l2-cache")) ctx->type7_l2 = handle;
+		if (!strcmp(ctx->subnode_name, "l3-cache")) ctx->type7_l3 = handle;
+	}
 
 	return len;
 }
@@ -423,6 +543,7 @@ static int smbios_write_type32(ulong *current, int handle,
 {
 	struct smbios_type32 *t;
 	int len = sizeof(struct smbios_type32);
+	if (IS_ENABLED(CONFIG_OF_CONTROL) && !ofnode_is_enabled(ctx->node)) return 0;
 
 	t = map_sysmem(*current, len);
 	memset(t, 0, sizeof(struct smbios_type32));
@@ -440,6 +561,7 @@ static int smbios_write_type127(ulong *current, int handle,
 {
 	struct smbios_type127 *t;
 	int len = sizeof(struct smbios_type127);
+	if (IS_ENABLED(CONFIG_OF_CONTROL) && !ofnode_is_enabled(ctx->node)) return 0;
 
 	t = map_sysmem(*current, len);
 	memset(t, 0, sizeof(struct smbios_type127));
@@ -456,7 +578,11 @@ static struct smbios_write_method smbios_write_funcs[] = {
 	{ smbios_write_type1, "system", },
 	{ smbios_write_type2, "baseboard", },
 	{ smbios_write_type3, "chassis", },
-	{ smbios_write_type4, },
+	{ smbios_write_type7, "l1i-cache" },
+	{ smbios_write_type7, "l1d-cache" },
+	{ smbios_write_type7, "l2-cache" },
+	{ smbios_write_type7, "l3-cache" },
+	{ smbios_write_type4, "cpu" },
 	{ smbios_write_type32, },
 	{ smbios_write_type127 },
 };
@@ -475,6 +601,7 @@ ulong write_smbios_table(ulong addr)
 	int isize;
 	int i;
 
+	memset(&ctx, 0, sizeof(ctx));
 	ctx.node = ofnode_null();
 	if (IS_ENABLED(CONFIG_OF_CONTROL)) {
 		uclass_first_device(UCLASS_SYSINFO, &ctx.dev);
@@ -503,8 +630,10 @@ ulong write_smbios_table(ulong addr)
 		if (IS_ENABLED(CONFIG_OF_CONTROL) && method->subnode_name)
 			ctx.node = ofnode_find_subnode(parent_node,
 						       method->subnode_name);
-		tmp = method->write((ulong *)&addr, handle++, &ctx);
-
+		ctx.subnode_name = method->subnode_name;
+		tmp = method->write((ulong *)&addr, handle, &ctx);
+		if (tmp <= 0) continue;
+		handle++;
 		max_struct_size = max(max_struct_size, tmp);
 		len += tmp;
 	}
