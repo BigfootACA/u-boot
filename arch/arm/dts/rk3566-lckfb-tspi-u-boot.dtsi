@@ -1,0 +1,100 @@
+// SPDX-License-Identifier: GPL-2.0+
+
+#include "rk356x-u-boot.dtsi"
+
+/ {
+	chosen {
+		stdout-path = &uart2;
+		u-boot,spl-boot-order = "same-as-spl", &sdhci, &sdmmc0;
+	};
+
+	rng: rng@fe388000 {
+		compatible = "rockchip,cryptov2-rng";
+		reg = <0x0 0xfe388000 0x0 0x2000>;
+		status = "okay";
+	};
+
+	smbios {
+		compatible = "u-boot,sysinfo-smbios";
+		smbios {
+			status = "okay";
+			system {
+				status = "okay";
+				manufacturer = "LCKFB";
+				product = "Tai-Shang Pi RK3566";
+				version = "v10";
+				family = "Tai-Shang Pi";
+				sku = "C19273641";
+				wakeup = <0x06>;
+			};
+			baseboard {
+				status = "okay";
+				manufacturer = "LCKFB";
+				product = "Tai-Shang Pi RK3566";
+				version = "v10";
+				type = <0x0a>;
+			};
+			chassis {
+				status = "okay";
+				manufacturer = "LCKFB";
+				product = "Tai-Shang Pi RK3566";
+				version = "v10";
+				type = <0x22>;
+			};
+			cpu {
+				status = "okay";
+				manufacturer = "ARM";
+				version = "Cortex-A55";
+				cores = <0x04>;
+				threads = <0x04>;
+				voltage = <0x8c>;
+				id0 = <0x412fd050>;
+				id1 = <0x00>;
+				max-speed = <0x708>;
+				family = <0x101>;
+				characteristics = <0xec>;
+			};
+			l1i-cache {
+				status = "okay";
+				socket = "L1 Instruction";
+				config = <0x380>;
+				max-size = <0x20>;
+				installed-size = <0x20>;
+				type = <0x03>;
+			};
+			l1d-cache {
+				status = "okay";
+				socket = "L1 Data";
+				config = <0x180>;
+				max-size = <0x20>;
+				installed-size = <0x20>;
+				type = <0x04>;
+			};
+			l2-cache {
+				status = "disabled";
+			};
+			l3-cache {
+				status = "okay";
+				socket = "L3";
+				config = <0x182>;
+				max-size = <0x200>;
+				installed-size = <0x200>;
+				type = <0x05>;
+			};
+		};
+	};
+};
+
+&gpio0 {
+	bootph-all;
+};
+
+/* WiFi */
+&sdmmc1 {
+	status = "disabled";
+};
+
+/* Debug UART */
+&uart2 {
+	bootph-all;
+};
