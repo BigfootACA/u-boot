@@ -174,6 +174,18 @@
 		method = "smc";
 	};
 
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		scmi_shmem: shmem@10f000 {
+			compatible = "arm,scmi-shmem";
+			reg = <0x0 0x0010f000 0x0 0x100>;
+			no-map;
+		};
+	};
+
 	timer {
 		compatible = "arm,armv8-timer";
 		interrupts = <GIC_PPI 13 IRQ_TYPE_LEVEL_HIGH>,
@@ -197,19 +209,6 @@
 		pinctrl-0 = <&clk32k_out0>;
 		pinctrl-names = "default";
 		#clock-cells = <0>;
-	};
-
-	sram@10f000 {
-		compatible = "mmio-sram";
-		reg = <0x0 0x0010f000 0x0 0x100>;
-		#address-cells = <1>;
-		#size-cells = <1>;
-		ranges = <0 0x0 0x0010f000 0x100>;
-
-		scmi_shmem: sram@0 {
-			compatible = "arm,scmi-shmem";
-			reg = <0x0 0x100>;
-		};
 	};
 
 	sata1: sata@fc400000 {
@@ -330,6 +329,12 @@
 		status = "disabled";
 	};
 
+	xpcs: syscon@fda00000 {
+		compatible = "rockchip,rk3568-xpcs", "syscon";
+		reg = <0x0 0xfda00000 0x0 0x200000>;
+		status = "disabled";
+	};
+
 	pmugrf: syscon@fdc20000 {
 		compatible = "rockchip,rk3568-pmugrf", "syscon", "simple-mfd";
 		reg = <0x0 0xfdc20000 0x0 0x10000>;
@@ -367,6 +372,16 @@
 	usb2phy1_grf: syscon@fdca8000 {
 		compatible = "rockchip,rk3568-usb2phy-grf", "syscon";
 		reg = <0x0 0xfdca8000 0x0 0x8000>;
+	};
+
+	edp_phy: edp-phy@fdcb0000 {
+		compatible = "rockchip,rk3568-edp-phy";
+		reg = <0 0xfdcb0000 0 0x8000>;
+		clocks = <&pmucru XIN_OSC0_EDPPHY_G>, <&cru PCLK_EDPPHY_GRF>;
+		clock-names = "refclk", "pclk";
+		resets = <&cru XIN_OSC0_EDPPHY_G>;
+		reset-names = "apb";
+		#phy-cells = <0>;
 	};
 
 	pmucru: clock-controller@fdd00000 {
@@ -796,6 +811,37 @@
 			};
 
 			hdmi_out: port@1 {
+				reg = <1>;
+			};
+		};
+	};
+
+	edp: edp@fe0c0000 {
+		compatible = "rockchip,rk3568-edp";
+		reg = <0x0 0xfe0c0000 0x0 0x1000>;
+		clocks = <&pmucru XIN_OSC0_EDPPHY_G>,
+			 <&cru PCLK_EDP_CTRL>,
+			 <&cru CLK_EDP_200M>,
+			 <&cru HCLK_VO>;
+		clock-names = "dp", "pclk", "spdif", "hclk";
+		interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
+		phys = <&edp_phy>;
+		phy-names = "dp";
+		power-domains = <&power RK3568_PD_VO>;
+		resets = <&cru SRST_EDP_24M>,
+			 <&cru SRST_P_EDP_CTRL>;
+		reset-names = "dp", "apb";
+		status = "disabled";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			edp_in: port@0 {
+				reg = <0>;
+			};
+
+			edp_out: port@1 {
 				reg = <1>;
 			};
 		};

@@ -1,0 +1,132 @@
+// SPDX-License-Identifier: GPL-2.0+
+
+#include <smbios_def.h>
+#include "rk356x-u-boot.dtsi"
+
+/ {
+	chosen {
+		stdout-path = &uart2;
+		u-boot,spl-boot-order = "same-as-spl", &sdhci, &sdmmc0;
+	};
+
+	smbios {
+		compatible = "u-boot,sysinfo-smbios";
+
+		smbios {
+			system {
+				manufacturer = "ZTE";
+				product = "W609D SE";
+				version = "v0.3";
+				family = "W600D2";
+				sku = "2023AP6152";
+				wakeup-type = <SMBIOS_WAKEUP_TYPE_POWER_SWITCH>;
+			};
+
+			baseboard {
+				manufacturer = "ZTE";
+				product = "W600D2_MB_RK68";
+				version = "PVT_V0.3";
+				feature-flags = <SMBIOS_BOARD_FEAT_HOST_BOARD>;
+				board-type = <SMBIOS_BOARD_TYPE_MOTHERBOARD>;
+			};
+
+			chassis {
+				manufacturer = "ZTE";
+				product = "W609D SE";
+				version = "v0.3";
+				bootup-state = <SMBIOS_STATE_SAFE>;
+				power-supply-state = <SMBIOS_STATE_SAFE>;
+				thermal-state = <SMBIOS_STATE_SAFE>;
+				security-status = <SMBIOS_SECURITY_NONE>;
+				chassis-type = <0x09>;
+			};
+
+			processor {
+				socket-design = "SoC";
+				socket-type = "FCBGA636L";
+				processor-type = <SMBIOS_PROCESSOR_TYPE_CENTRAL>;
+				processor-status = <0x41>;
+				manufacturer = "ARM Limited";
+				version = "Cortex-A55";
+				core-count = <4>;
+				core-enabled = <4>;
+				thread-count = <4>;
+				thread-enabled = <4>;
+				core-count2 = <4>;
+				core-enabled2 = <4>;
+				thread-count2 = <4>;
+				voltage = <140>;
+				upgrade = <0xff>;
+				id0 = <0x412fd050>;
+				id1 = <0>;
+				max-speed = <2000>;
+				current-speed = <2000>;
+				family = <SMBIOS_PROCESSOR_FAMILY_ARMV8>;
+				characteristics = <(
+					SMBIOS_PROCESSOR_64BIT |
+					SMBIOS_PROCESSOR_MULTICORE |
+					SMBIOS_PROCESSOR_EXEC_PROT |
+					SMBIOS_PROCESSOR_ENH_VIRT |
+					SMBIOS_PROCESSOR_POW_CON
+				)>;
+			};
+
+			cache {
+				l1-cache {
+					socket-design = "L1";
+					config = <(
+						SMBIOS_CACHE_LEVEL_1 |
+						SMBIOS_CACHE_ENABLED |
+						SMBIOS_CACHE_OP_WB
+					)>;
+					max-size = <0x20>;
+					installed-size = <0x20>;
+					type = <0x03>;
+				};
+
+				l3-cache {
+					socket = "L3";
+					config = <(
+						SMBIOS_CACHE_LEVEL_3 |
+						SMBIOS_CACHE_ENABLED |
+						SMBIOS_CACHE_OP_WB
+					)>;
+					max-size = <0x200>;
+					installed-size = <0x200>;
+					type = <0x05>;
+				};
+			};
+		};
+	};
+};
+
+&gpio0 {
+	bootph-all;
+};
+
+/* WiFi */
+&sdmmc1 {
+	status = "disabled";
+};
+
+/* Debug UART */
+&uart2 {
+	bootph-all;
+};
+
+/* Left USB Type-A Port */
+&usb_host0_xhci {
+	dr_mode = "otg";
+};
+
+&display_subsystem {
+	route {
+		route_edp: route-edp {
+			connect = <&vp0_out_edp>;
+		};
+
+		route_hdmi: route-hdmi {
+			connect = <&vp2_out_hdmi>;
+		};
+	};
+};

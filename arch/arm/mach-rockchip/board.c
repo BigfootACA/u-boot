@@ -200,7 +200,7 @@ int board_late_init(void)
 	return rk_board_late_init();
 }
 
-int board_init(void)
+__weak int board_init(void)
 {
 	return 0;
 }

@@ -60,6 +60,11 @@ config TARGET_ORANGEPI_3B_RK3566
 	help
 	  Xunlong Orange Pi 3B single board computer with a RK3566 SoC.
 
+config TARGET_ZTE_W609DSE
+	bool "ZTE W609D SE"
+	help
+	  ZTE W609D SE laptop with an RK3568 SoC.
+
 endchoice
 
 config ROCKCHIP_BOOT_MODE_REG
@@ -86,5 +91,6 @@ source "board/powkiddy/x55/Kconfig"
 source "board/qnap/ts433/Kconfig"
 source "board/radxa/zero3-rk3566/Kconfig"
 source "board/xunlong/orangepi-3b-rk3566/Kconfig"
+source "board/zte/w609dse/Kconfig"
 
 endif

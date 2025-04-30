@@ -1,0 +1,15 @@
+if TARGET_ZTE_W609DSE
+
+config SYS_BOARD
+	default "w609dse"
+
+config SYS_VENDOR
+	default "zte"
+
+config SYS_CONFIG_NAME
+	default "zte_w609dse"
+
+config BOARD_SPECIFIC_OPTIONS # dummy
+	def_bool y
+
+endif
