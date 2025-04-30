@@ -26,6 +26,14 @@ struct backlight_ops {
 	int (*enable)(struct udevice *dev);
 
 	/**
+	 * disable() - Disable a backlight
+	 *
+	 * @dev:        Backlight device to disable
+	 * @return 0 if OK, -ve on error
+	 */
+	int (*disable)(struct udevice *dev);
+
+	/**
 	 * set_brightness - Set brightness
 	 *
 	 * @dev:	Backlight device to update
@@ -44,6 +52,14 @@ struct backlight_ops {
  * Return: 0 if OK, -ve on error
  */
 int backlight_enable(struct udevice *dev);
+
+/**
+ * backlight_disable() - Disable a backlight
+ *
+ * @dev:       Backlight device to disable
+ * @return 0 if OK, -ve on error
+ */
+int backlight_disable(struct udevice *dev);
 
 /**
  * backlight_set_brightness - Set brightness

@@ -35,6 +35,18 @@ enum phy_mode {
 };
 
 /**
+ * struct phy_attrs - represents phy attributes
+ * @bus_width: Data path width implemented by PHY
+ * @max_link_rate: Maximum link rate supported by PHY (in Mbps)
+ * @mode: PHY mode
+ */
+struct phy_attrs {
+	u32			bus_width;
+	u32			max_link_rate;
+	enum phy_mode		mode;
+};
+
+/**
  * struct phy - A handle to (allowing control of) a single phy port.
  *
  * Clients provide storage for phy handles. The content of the structure is
@@ -49,6 +61,7 @@ enum phy_mode {
 struct phy {
 	struct udevice *dev;
 	unsigned long id;
+	struct phy_attrs attrs;
 };
 
 /*
@@ -58,6 +71,7 @@ struct phy {
  * @reset: reset the phy (optional).
  * @power_on: powering on the phy (optional)
  * @power_off: powering off the phy (optional)
+ * @set_mode: set the mode of the phy
  */
 struct phy_ops {
 	/**
@@ -92,58 +106,76 @@ struct phy_ops {
 	int	(*init)(struct phy *phy);
 
 	/**
-	 * exit - de-initialize the PHY device
-	 *
-	 * Hardware de-intialization should be done here. Every step done in
-	 * init() should be undone here.
-	 * This could be used to suspend the phy to reduce power consumption or
-	 * to put the phy in a known condition before booting the OS (though it
-	 * is NOT called automatically before booting the OS)
-	 * If power_off() is not implemented, it must power down the phy.
-	 *
-	 * @phy:	PHY port to be de-initialized
-	 * Return: 0 if OK, or a negative error code
-	 */
+	* exit - de-initialize the PHY device
+	*
+	* Hardware de-intialization should be done here. Every step done in
+	* init() should be undone here.
+	* This could be used to suspend the phy to reduce power consumption or
+	* to put the phy in a known condition before booting the OS (though it
+	* is NOT called automatically before booting the OS)
+	* If power_off() is not implemented, it must power down the phy.
+	*
+	* @phy:	PHY port to be de-initialized
+	* Return: 0 if OK, or a negative error code
+	*/
 	int	(*exit)(struct phy *phy);
 
 	/**
-	 * reset - resets a PHY device without shutting down
-	 *
-	 * @phy:	PHY port to be reset
-	 *
-	 * During runtime, the PHY may need to be reset in order to
-	 * re-establish connection etc without being shut down or exit.
-	 *
-	 * Return: 0 if OK, or a negative error code
-	 */
+	* reset - resets a PHY device without shutting down
+	*
+	* @phy:	PHY port to be reset
+	*
+	* During runtime, the PHY may need to be reset in order to
+	* re-establish connection etc without being shut down or exit.
+	*
+	* Return: 0 if OK, or a negative error code
+	*/
 	int	(*reset)(struct phy *phy);
 
 	/**
-	 * power_on - power on a PHY device
+	 * @validate:
 	 *
-	 * @phy:	PHY port to be powered on
+	 * Optional.
 	 *
-	 * During runtime, the PHY may need to be powered on or off several
-	 * times. This function is used to power on the PHY. It relies on the
-	 * setup done in init(). If init() is not implemented, it must take care
-	 * of setting up the context (PLLs, ...)
+	 * Used to check that the current set of parameters can be
+	 * handled by the phy. Implementations are free to tune the
+	 * parameters passed as arguments if needed by some
+	 * implementation detail or constraints. It must not change
+	 * any actual configuration of the PHY, so calling it as many
+	 * times as deemed fit by the consumer must have no side
+	 * effect.
 	 *
-	 * Return: 0 if OK, or a negative error code
+	 * Returns: 0 if the configuration can be applied, an negative
+	 * error code otherwise
 	 */
+	int	(*validate)(struct phy *phy, enum phy_mode mode, int submode, void *opts);
+
+	/**
+	* power_on - power on a PHY device
+	*
+	* @phy:	PHY port to be powered on
+	*
+	* During runtime, the PHY may need to be powered on or off several
+	* times. This function is used to power on the PHY. It relies on the
+	* setup done in init(). If init() is not implemented, it must take care
+	* of setting up the context (PLLs, ...)
+	*
+	* Return: 0 if OK, or a negative error code
+	*/
 	int	(*power_on)(struct phy *phy);
 
 	/**
-	 * power_off - power off a PHY device
-	 *
-	 * @phy:	PHY port to be powered off
-	 *
-	 * During runtime, the PHY may need to be powered on or off several
-	 * times. This function is used to power off the PHY. Except if
-	 * init()/deinit() are not implemented, it must not de-initialize
-	 * everything.
-	 *
-	 * Return: 0 if OK, or a negative error code
-	 */
+	* power_off - power off a PHY device
+	*
+	* @phy:	PHY port to be powered off
+	*
+	* During runtime, the PHY may need to be powered on or off several
+	* times. This function is used to power off the PHY. Except if
+	* init()/deinit() are not implemented, it must not de-initialize
+	* everything.
+	*
+	* Return: 0 if OK, or a negative error code
+	*/
 	int	(*power_off)(struct phy *phy);
 
 	/**
@@ -273,6 +305,22 @@ int generic_phy_set_mode(struct phy *phy, enum phy_mode mode, int submode);
  * Return: 0 if OK, or a negative error code
  */
 int generic_phy_set_speed(struct phy *phy, int speed);
+
+/**
+ * generic_phy_validate() - validate the PHY parameters
+ *
+ * @phy:        PHY port to be validate
+ * @return 0 if OK, or a negative error code
+ */
+int generic_phy_validate(struct phy *phy, enum phy_mode mode, int submode,
+			 void *params);
+
+int generic_phy_set_mode_ext(struct phy *phy, enum phy_mode mode, int submode);
+
+static inline enum phy_mode generic_phy_get_mode(struct phy *phy)
+{
+	return phy->attrs.mode;
+}
 
 /**
  * generic_phy_get_by_index() - Get a PHY device by integer index.
@@ -474,6 +522,13 @@ static inline int generic_phy_set_speed(struct phy *phy, int speed)
 	return 0;
 }
 
+static inline int generic_phy_validate(struct phy *phy, enum phy_mode mode,
+				       int submode,
+				       void *opts)
+{
+	return 0;
+}
+
 static inline int generic_phy_get_by_index(struct udevice *user, int index,
 			     struct phy *phy)
 {
@@ -485,6 +540,15 @@ static inline int generic_phy_get_by_name(struct udevice *user, const char *phy_
 {
 	return 0;
 }
+
+static inline int generic_phy_set_mode_ext(struct phy *phy, enum phy_mode mode,
+					   int submode)
+{
+	return 0;
+}
+
+#define generic_phy_set_mode(phy, mode) \
+	generic_phy_set_mode_ext(phy, mode, 0)
 
 static inline int
 generic_phy_get_bulk(struct udevice *dev, struct phy_bulk *bulk)

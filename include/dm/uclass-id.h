@@ -51,6 +51,8 @@ enum uclass_id {
 	UCLASS_CACHE,		/* Cache controller */
 	UCLASS_CLK,		/* Clock source, e.g. used by peripherals */
 	UCLASS_CPU,		/* CPU, typically part of an SoC */
+	UCLASS_AMP,		/* Asymmetric Multi-Processing */
+	UCLASS_CODEC,		/* audio codec */
 	UCLASS_CROS_EC,		/* Chrome OS EC */
 	UCLASS_DISPLAY,		/* Display (e.g. DisplayPort, HDMI) */
 	UCLASS_DMA,		/* Direct Memory Access */
@@ -122,6 +124,8 @@ enum uclass_id {
 	UCLASS_REMOTEPROC,	/* Remote Processor device */
 	UCLASS_RESET,		/* Reset controller device */
 	UCLASS_RKMTD,		/* Rockchip MTD device */
+	UCLASS_RKNAND,		/* Rockchip nand device with ftl */
+	UCLASS_RAMDISK,		/* Virtual ram disk */
 	UCLASS_RNG,		/* Random Number Generator */
 	UCLASS_RTC,		/* Real time clock device */
 	UCLASS_SCMI_AGENT,	/* Interface with an SCMI server */
@@ -153,11 +157,23 @@ enum uclass_id {
 	UCLASS_VIDEO_BRIDGE,	/* Video bridge, e.g. DisplayPort to LVDS */
 	UCLASS_VIDEO_CONSOLE,	/* Text console driver for video device */
 	UCLASS_VIDEO_OSD,	/* On-screen display */
+	UCLASS_VIDEO_CRTC,	/* Display Controller */
 	UCLASS_VIRTIO,		/* VirtIO transport device */
 	UCLASS_W1,		/* Dallas 1-Wire bus */
 	UCLASS_W1_EEPROM,	/* one-wire EEPROMs */
 	UCLASS_WDT,		/* Watchdog Timer driver */
 
+	UCLASS_FG,		/* Fuel gauge */
+	UCLASS_KEY,		/* Key */
+	UCLASS_RC,		/* Remote Controller */
+	UCLASS_CHARGE_DISPLAY,	/* Charge display */
+	UCLASS_DVFS,		/* DVFS policy */
+	UCLASS_IO_DOMAIN,	/* IO domain */
+	UCLASS_CRYPTO,		/* Crypto */
+	UCLASS_EBC,		/* EBC Controller for eink screen */
+	UCLASS_EINK_DISPLAY,	/* EINK screen display driver */
+	UCLASS_DMC,		/* Dynamic Memory Interface */
+	UCLASS_PD,		/* power delivery */
 	UCLASS_COUNT,
 	UCLASS_INVALID = -1,
 };

@@ -33,6 +33,13 @@ config PHY_ROCKCHIP_NANENG_COMBOPHY
 	help
 	  Enable this to support the Rockchip NANENG combo PHY.
 
+config PHY_ROCKCHIP_NANENG_EDP
+	tristate "Rockchip Naneng eDP Transmitter PHY driver"
+	depends on ARCH_ROCKCHIP
+	select PHY
+	help
+	  Support for Rockchip eDP Transmitter PHY with Naneng IP block.
+
 config PHY_ROCKCHIP_PCIE
 	bool "Rockchip PCIe PHY Driver"
 	depends on ARCH_ROCKCHIP

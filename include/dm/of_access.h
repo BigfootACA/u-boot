@@ -640,6 +640,17 @@ int of_alias_scan(void);
 int of_alias_get_id(const struct device_node *np, const char *stem);
 
 /**
+ * of_alias_get_dev - Get device_node by given stem and alias id
+ *
+ * Travels the lookup table to get the device_node by given stem and alias id.
+ *
+ * @stem:      Alias stem of the given device_node
+ * @id:         Alias id of the given device_node
+ * @return device_node, if found, else NULL
+ */
+struct device_node *of_alias_get_dev(const char *stem, int id);
+
+/**
  * of_alias_get_highest_id - Get highest alias id for the given stem
  * @stem:	Alias stem to be examined
  *

@@ -166,6 +166,8 @@ int generic_phy_get_by_index_nodev(ofnode node, int index, struct phy *phy)
 	phy->dev = phydev;
 
 	ops = phy_dev_ops(phydev);
+	if (!ops)
+		goto err;
 
 	if (ops->of_xlate)
 		ret = ops->of_xlate(phy, &args);
