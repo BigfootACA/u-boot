@@ -1153,6 +1153,9 @@ static int dwc3_gadget_ep_dequeue(struct usb_ep *ep,
 
 	spin_lock_irqsave(&dwc->lock, flags);
 
+	if (list_empty(&dep->request_list) && list_empty(&dep->req_queued))
+		goto out0;
+
 	list_for_each_entry(r, &dep->request_list, list) {
 		if (r == req)
 			break;
